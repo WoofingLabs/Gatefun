@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>发射台一键买入</title>
+  <title>发射台买入（带检测）</title>
   <link rel="icon" href="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet" />
@@ -21,7 +21,7 @@
     <div class="text-center mb-8">
       <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" class="w-24 h-24 mx-auto rounded-full border-4 border-[#18E5A0]/50 glow float" />
       <h1 class="text-4xl font-bold text-[#0068FF] mt-4">发射台买入</h1>
-      <p class="text-gray-400 mt-2">输入代币地址 + 任意 GT 数量</p>
+      <p class="text-gray-400 mt-2">输入代币地址 + GT 数量</p>
     </div>
 
     <div class="bg-[#111]/50 p-6 rounded-xl border border-[#0068FF]/30 backdrop-blur">
@@ -37,17 +37,14 @@
 
       <div class="mt-4">
         <label class="text-sm text-gray-400">GT 买入数量</label>
-        <input id="gtAmount" type="text" placeholder="如：0.1 或 10" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
-      </div>
-
-      <div class="mt-4">
-        <label class="text-sm text-gray-400">滑点容忍度 (%)</label>
-        <input id="slippage" type="text" value="1" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
+        <input id="gtAmount" type="text" placeholder="如：0.1" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
       </div>
 
       <p id="balance" class="text-xs text-gray-500 mt-3">GT 余额: 0</p>
 
-      <button id="buyBtn" disabled class="w-full mt-5 py-3 btn-grad text-white rounded-full font-medium opacity-50 cursor-not-allowed transition">
+      <button id="checkBtn" class="w-full mt-3 py-2 bg-gray-700 rounded-full text-sm">检测池子状态</button>
+
+      <button id="buyBtn" disabled class="w-full mt-3 py-3 btn-grad text-white rounded-full font-medium opacity-50 cursor-not-allowed transition">
         请输入代币地址和数量
       </button>
 
@@ -59,9 +56,9 @@
   <script>
     const PROXY = '0x7c8fbd15e4c8b722920c1570a4704622d5391113';
     const SELECTOR = '0xa59ac6dd';
-
     let web3, account;
 
+    // 连接钱包
     document.getElementById('connectBtn').onclick = async () => {
       if (!window.ethereum) return alert('请安装 MetaMask');
       web3 = new Web3(window.ethereum);
@@ -70,14 +67,10 @@
         account = (await web3.eth.getAccounts())[0];
         document.getElementById('connectBtn').innerText = `${account.slice(0,6)}...${account.slice(-4)}`;
         document.getElementById('status').innerText = '已连接 GateLayer';
-        document.getElementById('progress').innerText = '连接成功';
         await switchNetwork();
         updateBalance();
         enableBuy();
-        loadTokenFromURL();
-      } catch (e) {
-        document.getElementById('progress').innerText = '连接失败';
-      }
+      } catch { document.getElementById('progress').innerText = '连接失败'; }
     };
 
     async function switchNetwork() {
@@ -122,34 +115,53 @@
       }
     }
 
-    ['tokenAddr', 'gtAmount', 'slippage'].forEach(id => {
+    ['tokenAddr', 'gtAmount'].forEach(id => {
       document.getElementById(id).addEventListener('input', enableBuy);
     });
 
+    // 检测池子状态
+    document.getElementById('checkBtn').onclick = async () => {
+      const token = document.getElementById('tokenAddr').value.trim();
+      const amount = document.getElementById('gtAmount').value.trim() || '0.1';
+      if (!web3.utils.isAddress(token)) return alert('无效地址');
+
+      document.getElementById('progress').innerText = '检测中...';
+      try {
+        const amountWei = web3.utils.toWei(amount, 'ether');
+        const data = SELECTOR +
+          web3.utils.padLeft(token, 64).slice(2) +
+          web3.utils.padLeft(amountWei, 64).slice(2) +
+          web3.utils.padLeft('0', 64).slice(2) +
+          web3.utils.padLeft('0x1f', 64).slice(2);
+
+        await web3.eth.call({ to: PROXY, data, value: amountWei });
+        document.getElementById('progress').innerText = '池子开放，可买入！';
+      } catch (e) {
+        const msg = e.data === '0x5a9f5930' ? '池子已关闭，无法买入' :
+                   e.message.includes('insufficient') ? 'GT 余额不足' : '未知错误';
+        document.getElementById('progress').innerText = msg;
+      }
+    };
+
+    // 买入
     document.getElementById('buyBtn').onclick = async () => {
       const token = document.getElementById('tokenAddr').value.trim();
       const amountStr = document.getElementById('gtAmount').value.trim();
       const btn = document.getElementById('buyBtn');
-
-      if (!web3.utils.isAddress(token)) return alert('无效代币地址');
-      if (!amountStr || isNaN(amountStr) || parseFloat(amountStr) <= 0) return alert('无效 GT 数量');
 
       const amount = parseFloat(amountStr);
       const amountWei = web3.utils.toWei(amount.toString(), 'ether');
 
       btn.disabled = true;
       btn.innerHTML = '交易中... <i class="fa fa-spinner fa-spin ml-2"></i>';
-      document.getElementById('progress').innerText = '正在买入...';
+      document.getElementById('progress').innerText = '提交交易...';
 
       try {
-        const minReceive = '0';
-        const flag = '0x1f';
-
         const data = SELECTOR +
           web3.utils.padLeft(token, 64).slice(2) +
           web3.utils.padLeft(amountWei, 64).slice(2) +
-          web3.utils.padLeft(minReceive, 64).slice(2) +
-          web3.utils.padLeft(flag, 64).slice(2);
+          web3.utils.padLeft('0', 64).slice(2) +
+          web3.utils.padLeft('0x1f', 64).slice(2);
 
         const tx = await web3.eth.sendTransaction({
           from: account,
@@ -166,10 +178,8 @@
           </a>
         `;
       } catch (e) {
-        console.error(e);
-        const msg = e.code === 4001 ? '用户取消' : 
-                   e.message.includes('5a9f5930') ? '合约拒绝（可能余额不足或已结束）' :
-                   '交易失败';
+        const msg = e.data === '0x5a9f5930' ? '池子已关闭' :
+                   e.code === 4001 ? '用户取消' : '交易失败';
         document.getElementById('progress').innerText = msg;
       } finally {
         btn.disabled = false;
@@ -177,17 +187,6 @@
         setTimeout(updateBalance, 3000);
       }
     };
-
-    function loadTokenFromURL() {
-      const params = new URLSearchParams(location.search);
-      const token = params.get('token');
-      if (token && web3.utils.isAddress(token)) {
-        document.getElementById('tokenAddr').value = token;
-        enableBuy();
-      }
-    }
-
-    window.onload = loadTokenFromURL;
   </script>
 </body>
 </html>
