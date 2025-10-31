@@ -21,7 +21,7 @@
     <div class="text-center mb-8">
       <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" class="w-24 h-24 mx-auto rounded-full border-4 border-[#18E5A0]/50 glow float" />
       <h1 class="text-4xl font-bold text-[#0068FF] mt-4">Gate Fun 买入</h1>
-      <p class="text-gray-400 mt-2">单次最多 20 GT</p>
+      <p class="text-gray-400 mt-2">输入代币地址 + 任意 GT 数量</p>
     </div>
 
     <div class="bg-[#111]/50 p-6 rounded-xl border border-[#0068FF]/30 backdrop-blur">
@@ -36,8 +36,8 @@
       </div>
 
       <div class="mt-4">
-        <label class="text-sm text-gray-400">GT 买入数量（≤ 20）</label>
-        <input id="gtAmount" type="text" placeholder="如：10" oninput="let v=parseFloat(this.value);if(v>20)this.value='20';if(v<=0)this.value='';" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
+        <label class="text-sm text-gray-400">GT 买入数量</label>
+        <input id="gtAmount" type="text" placeholder="如：0.1 或 100" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
       </div>
 
       <p id="balance" class="text-xs text-gray-500 mt-3">GT 余额: 0</p>
@@ -100,7 +100,7 @@
     function enableBuy() {
       const token = document.getElementById('tokenAddr').value.trim();
       const amount = document.getElementById('gtAmount').value.trim();
-      const valid = web3.utils.isAddress(token) && amount && !isNaN(amount) && amount > 0 && amount <= 20;
+      const valid = web3.utils.isAddress(token) && amount && !isNaN(amount) && amount > 0;
       const btn = document.getElementById('buyBtn');
       if (valid && account) {
         btn.disabled = false;
@@ -109,7 +109,7 @@
       } else {
         btn.disabled = true;
         btn.classList.add('opacity-50', 'cursor-not-allowed');
-        btn.innerText = amount > 20 ? '单次最多 20 GT' : '请输入代币地址和数量';
+        btn.innerText = '请输入代币地址和数量';
       }
     }
 
@@ -122,10 +122,10 @@
       const amountStr = document.getElementById('gtAmount').value.trim();
       const btn = document.getElementById('buyBtn');
 
-      const amount = parseFloat(amountStr);
-      if (amount > 20) return alert('单次最多 20 GT');
+      if (!web3.utils.isAddress(token)) return alert('无效代币地址');
+      if (!amountStr || isNaN(amountStr) || parseFloat(amountStr) <= 0) return alert('无效 GT 数量');
 
-      const amountWei = web3.utils.toWei(amount.toString(), 'ether');
+      const amountWei = web3.utils.toWei(amountStr, 'ether');
 
       btn.disabled = true;
       btn.innerHTML = '交易中... <i class="fa fa-spinner fa-spin ml-2"></i>';
@@ -135,15 +135,15 @@
         const data = SELECTOR +
           web3.utils.padLeft(token, 64).slice(2) +
           web3.utils.padLeft(amountWei, 64).slice(2) +
-          web3.utils.padLeft('0', 64).slice(2) +
-          web3.utils.padLeft('0x1f', 64).slice(2);
+          web3.utils.padLeft('0', 64).slice(2) +     // minReceive = 0
+          web3.utils.padLeft('0x1f', 64).slice(2);   // flag
 
         const tx = await web3.eth.sendTransaction({
           from: account,
           to: PROXY,
           value: amountWei,
           data: data,
-          gas: 800000
+          gas: 1000000
         });
 
         document.getElementById('progress').innerHTML = `
@@ -157,6 +157,8 @@
         let msg = '交易失败';
         if (e.code === 4001) msg = '用户取消';
         else if (e.message.includes('insufficient')) msg = 'GT 余额不足';
+        else if (e.data === '0x5a9f5930') msg = '池子已关闭（已迁移到 GateSwap）';
+        else if (e.message.includes('reverted')) msg = '合约拒绝：池子无效或已结束';
         document.getElementById('progress').innerText = msg;
       } finally {
         btn.disabled = false;
