@@ -21,38 +21,32 @@
     <div class="text-center mb-8">
       <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" class="w-24 h-24 mx-auto rounded-full border-4 border-[#18E5A0]/50 glow float" />
       <h1 class="text-4xl font-bold text-[#0068FF] mt-4">发射台买入</h1>
-      <p class="text-gray-400 mt-2">输入任意代币地址，GT 一键秒进</p>
+      <p class="text-gray-400 mt-2">输入代币地址 + 任意 GT 数量</p>
     </div>
 
     <div class="bg-[#111]/50 p-6 rounded-xl border border-[#0068FF]/30 backdrop-blur">
-      <!-- 连接钱包 -->
       <button id="connectBtn" class="w-full py-3 bg-[#0068FF] rounded-full font-medium hover:bg-[#0058CC] transition">
         连接钱包
       </button>
       <p id="status" class="text-sm text-gray-400 text-center mt-2">点击连接 GateLayer</p>
 
-      <!-- 代币地址 -->
       <div class="mt-4 flex items-center bg-[#111]/80 p-3 rounded-lg border border-[#0068FF]/20">
-        <input id="tokenAddr" type="text" placeholder="代币合约地址 (CA)" class="flex-1 bg-transparent text-white outline-none text-sm" />
-        <button onclick="copyCA()" class="text-gray-400 hover:text-[#18E5A0] ml-2"><i class="fa fa-copy"></i></button>
+        <input id="tokenAddr" type="text" placeholder="代币合约地址" class="flex-1 bg-transparent text-white outline-none text-sm" />
+        <button onclick="navigator.clipboard.writeText(document.getElementById('tokenAddr').value);document.getElementById('progress').innerText='已复制'" class="text-gray-400 hover:text-[#18E5A0] ml-2"><i class="fa fa-copy"></i></button>
       </div>
 
-      <!-- GT 数量 -->
       <div class="mt-4">
         <label class="text-sm text-gray-400">GT 买入数量</label>
-        <input id="gtAmount" type="text" placeholder="如：10" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
+        <input id="gtAmount" type="text" placeholder="如：0.1 或 10" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
       </div>
 
-      <!-- 滑点（默认1%） -->
       <div class="mt-4">
         <label class="text-sm text-gray-400">滑点容忍度 (%)</label>
         <input id="slippage" type="text" value="1" class="w-full mt-1 px-4 py-2 bg-[#111]/80 border border-[#0068FF]/20 rounded-lg text-white focus:border-[#18E5A0] outline-none" />
       </div>
 
-      <!-- 余额 -->
       <p id="balance" class="text-xs text-gray-500 mt-3">GT 余额: 0</p>
 
-      <!-- 买入按钮 -->
       <button id="buyBtn" disabled class="w-full mt-5 py-3 btn-grad text-white rounded-full font-medium opacity-50 cursor-not-allowed transition">
         请输入代币地址和数量
       </button>
@@ -63,48 +57,29 @@
 
   <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
   <script>
-    // 你的发射台代理合约（100% 匹配你第一次交易）
-    const LAUNCHPAD_PROXY = '0x7c8fbd15e4c8b722920c1570a4704622d5391113';
+    const PROXY = '0x7c8fbd15e4c8b722920c1570a4704622d5391113';
+    const SELECTOR = '0xa59ac6dd';
 
-    // 完全匹配你交易的函数签名：0xa59ac6dd
-    const BUY_FUNCTION_SELECTOR = '0xa59ac6dd';
-    const BUY_ABI = [{
-      "inputs": [
-        { "internalType": "address", "name": "", "type": "address" },
-        { "internalType": "uint256", "name": "", "type": "uint256" },
-        { "internalType": "uint256", "name": "", "type": "uint256" },
-        { "internalType": "uint256", "name": "", "type": "uint256" }
-      ],
-      "name": "buy",
-      "outputs": [],
-      "stateMutability": "payable",
-      "type": "function"
-    }];
+    let web3, account;
 
-    let web3, account, proxyContract;
-
-    // 连接钱包
     document.getElementById('connectBtn').onclick = async () => {
       if (!window.ethereum) return alert('请安装 MetaMask');
       web3 = new Web3(window.ethereum);
       try {
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         account = (await web3.eth.getAccounts())[0];
-        proxyContract = new web3.eth.Contract(BUY_ABI, LAUNCHPAD_PROXY);
-
         document.getElementById('connectBtn').innerText = `${account.slice(0,6)}...${account.slice(-4)}`;
         document.getElementById('status').innerText = '已连接 GateLayer';
-        document.getElementById('progress').innerText = '钱包连接成功！';
+        document.getElementById('progress').innerText = '连接成功';
         await switchNetwork();
         updateBalance();
-        enableBuyIfReady();
+        enableBuy();
         loadTokenFromURL();
       } catch (e) {
         document.getElementById('progress').innerText = '连接失败';
       }
     };
 
-    // 切换网络
     async function switchNetwork() {
       try {
         await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2768' }] });
@@ -124,25 +99,14 @@
       }
     }
 
-    // 更新余额
     async function updateBalance() {
       if (!account) return;
       const bal = await web3.eth.getBalance(account);
-      const fmt = Number(web3.utils.fromWei(bal, 'ether')).toFixed(4);
+      const fmt = Number(web3.utils.fromWei(bal, 'ether')).toFixed(6);
       document.getElementById('balance').innerText = `GT 余额: ${fmt}`;
     }
 
-    // 复制 CA
-    function copyCA() {
-      const ca = document.getElementById('tokenAddr').value.trim();
-      if (!ca || !web3.utils.isAddress(ca)) return;
-      navigator.clipboard.writeText(ca);
-      document.getElementById('progress').innerText = '已复制地址';
-      setTimeout(() => document.getElementById('progress').innerText = '等待操作...', 2000);
-    }
-
-    // 启用买入按钮
-    function enableBuyIfReady() {
+    function enableBuy() {
       const token = document.getElementById('tokenAddr').value.trim();
       const amount = document.getElementById('gtAmount').value.trim();
       const valid = web3.utils.isAddress(token) && amount && !isNaN(amount) && amount > 0;
@@ -158,48 +122,41 @@
       }
     }
 
-    // 监听输入
     ['tokenAddr', 'gtAmount', 'slippage'].forEach(id => {
-      document.getElementById(id).addEventListener('input', enableBuyIfReady);
+      document.getElementById(id).addEventListener('input', enableBuy);
     });
 
-    // 一键买入（完全复现你交易）
     document.getElementById('buyBtn').onclick = async () => {
       const token = document.getElementById('tokenAddr').value.trim();
-      const amount = document.getElementById('gtAmount').value.trim();
-      const slippage = document.getElementById('slippage').value || '1';
+      const amountStr = document.getElementById('gtAmount').value.trim();
       const btn = document.getElementById('buyBtn');
 
       if (!web3.utils.isAddress(token)) return alert('无效代币地址');
-      if (!amount || isNaN(amount) || amount <= 0) return alert('无效 GT 数量');
+      if (!amountStr || isNaN(amountStr) || parseFloat(amountStr) <= 0) return alert('无效 GT 数量');
+
+      const amount = parseFloat(amountStr);
+      const amountWei = web3.utils.toWei(amount.toString(), 'ether');
 
       btn.disabled = true;
       btn.innerHTML = '交易中... <i class="fa fa-spinner fa-spin ml-2"></i>';
       document.getElementById('progress').innerText = '正在买入...';
 
       try {
-        const amountWei = web3.utils.toWei(amount, 'ether');
-        const slippagePercent = parseFloat(slippage) / 100;
-        
-        // 估算最低收到代币数量（滑点保护）
-        // 由于你原交易 minReceive=0，这里我们用 1% 滑点估算
-        // 实际由合约决定，我们传一个合理值
-        const minReceive = '0'; // 你原交易就是 0，我们保持一致
-        const unknownParam = '0x1f'; // 你原交易的最后一个参数
+        const minReceive = '0';
+        const flag = '0x1f';
 
-        // 构造 data = 0xa59ac6dd + token(32) + amount(32) + minReceive(32) + unknown(32)
-        const data = BUY_FUNCTION_SELECTOR +
+        const data = SELECTOR +
           web3.utils.padLeft(token, 64).slice(2) +
           web3.utils.padLeft(amountWei, 64).slice(2) +
           web3.utils.padLeft(minReceive, 64).slice(2) +
-          web3.utils.padLeft(unknownParam, 64).slice(2);
+          web3.utils.padLeft(flag, 64).slice(2);
 
         const tx = await web3.eth.sendTransaction({
           from: account,
-          to: LAUNCHPAD_PROXY,
+          to: PROXY,
           value: amountWei,
           data: data,
-          gas: 600000
+          gas: 800000
         });
 
         document.getElementById('progress').innerHTML = `
@@ -210,7 +167,9 @@
         `;
       } catch (e) {
         console.error(e);
-        const msg = e.code === 4001 ? '用户取消交易' : '交易失败，请检查 GT 余额或网络';
+        const msg = e.code === 4001 ? '用户取消' : 
+                   e.message.includes('5a9f5930') ? '合约拒绝（可能余额不足或已结束）' :
+                   '交易失败';
         document.getElementById('progress').innerText = msg;
       } finally {
         btn.disabled = false;
@@ -219,17 +178,15 @@
       }
     };
 
-    // URL 自动填充 ?token=0x...
     function loadTokenFromURL() {
       const params = new URLSearchParams(location.search);
       const token = params.get('token');
       if (token && web3.utils.isAddress(token)) {
         document.getElementById('tokenAddr').value = token;
-        enableBuyIfReady();
+        enableBuy();
       }
     }
 
-    // 初始化
     window.onload = loadTokenFromURL;
   </script>
 </body>
