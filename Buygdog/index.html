@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GDOG 查询与领取</title>
-    <link rel="icon" type="image/png" href="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>GDOG 购买</title>
+    <link rel="icon" type="image/png" href="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Changa+One&display=swap" rel="stylesheet" />
     <script>
         tailwind.config = {
             theme: {
@@ -14,7 +15,6 @@
                     colors: {
                         primary: '#0068FF',
                         secondary: '#18E5A0',
-                        accent: '#FFD700',
                         dark: '#070808',
                         'light-gray': '#E5E7EB'
                     },
@@ -22,246 +22,236 @@
                         sans: ['Inter', 'system-ui', 'sans-serif'],
                         display: ['Changa One', 'system-ui', 'sans-serif']
                     },
-                    animation: { 'float': 'float 3s ease-in-out infinite' },
-                    keyframes: {
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-8px)' }
-                        }
-                    }
+                    animation: { float: 'float 3s ease-in-out infinite' },
+                    keyframes: { float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } } }
                 }
             }
         }
     </script>
     <style type="text/tailwindcss">
         @layer utilities {
-            .text-shadow-glow { text-shadow: 0 0 10px rgba(0,104,255,0.5); }
-            .glow-border { box-shadow: 0 0 12px rgba(24,229,160,0.3); }
+            .text-shadow-glow { text-shadow: 0 0 10px rgba(0, 104, 255, 0.5); }
+            .glow-border { box-shadow: 0 0 12px rgba(24, 229, 160, 0.3); }
         }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Changa+One&display=swap" rel="stylesheet">
 </head>
 <body class="bg-dark text-white font-sans overflow-x-hidden">
 
-<header class="fixed w-full z-50 bg-dark/90 backdrop-blur-md">
-    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-full overflow-hidden">
-                <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" alt="Logo" class="w-full h-full object-cover">
-            </div>
-            <span class="font-display text-3xl text-primary text-shadow-glow">GDOG 查询</span>
-        </div>
-    </div>
-</header>
-
-<section class="min-h-screen pt-24 flex items-center justify-center bg-gradient-to-b from-primary/10 to-dark">
-    <div class="container mx-auto px-4 text-center">
-        <div class="w-48 h-48 mx-auto mb-8 animate-float">
-            <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png"
-                 alt="GDOG" class="w-full h-full object-cover rounded-full border-4 border-secondary/50 glow-border">
-        </div>
-
-        <div class="bg-dark/50 p-8 rounded-lg border border-primary/30 max-w-md mx-auto space-y-6">
-            <button id="connectWalletButton"
-                    class="w-full px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">
-                Connect Wallet
-            </button>
-
-            <p id="networkStatus" class="text-light-gray text-sm">Click to connect wallet...</p>
-            <p id="progressStatus" class="text-light-gray text-sm">Waiting for action...</p>
-
-            <div id="userInfo" class="hidden space-y-4 text-left">
-                <div class="flex justify-between">
-                    <span class="text-light-gray">已投入 GT</span>
-                    <span id="gtSpent" class="font-mono text-secondary">0</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-light-gray">可领 GDOG</span>
-                    <span id="gdogPending" class="font-mono text-secondary">0</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-light-gray">合约 GDOG 余额</span>
-                    <span id="totalGdog" class="font-mono text-secondary">0</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-light-gray">购买次数</span>
-                    <span id="purchases" class="font-mono text-secondary">0</span>
-                </div>
-
-                <div id="withdrawSection" class="mt-6">
-                    <div id="withdrawStatus" class="p-3 rounded-lg text-center font-medium mb-3">
-                        <span id="withdrawText" class="text-red-400">不可领取</span>
-                    </div>
-                    <button id="withdrawBtn"
-                            class="hidden w-full px-6 py-3 bg-secondary text-dark rounded-full font-bold hover:bg-secondary/80 transition-all">
-                        领取 GDOG
-                    </button>
-                </div>
+    <header class="fixed w-full z-50 bg-dark/90 backdrop-blur-md" id="navbar">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" alt="GDOG" class="w-10 h-10 rounded-full" />
+                <span class="font-display text-3xl text-primary text-shadow-glow">GDOG</span>
             </div>
         </div>
-    </div>
-</section>
+    </header>
 
-<script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
-<script>
-    const chains = {
-        GateLayer: {
-            chainId: 10088,
-            chainName: 'Gate Layer',
-            rpcUrl: 'https://gatelayer-mainnet.gatenode.cc',
-            blockExplorer: 'https://www.gatescan.org/gatelayer/',
-            nativeCurrency: { name: 'GT', symbol: 'GT', decimals: 18 }
-        }
-    };
+    <section class="min-h-screen pt-24 pb-16 flex items-center justify-center px-4">
+        <div class="container mx-auto max-w-md">
+            <div class="text-center mb-8">
+                <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" alt="GDOG" class="w-32 h-32 mx-auto mb-4 animate-float rounded-full border-4 border-secondary/50 glow-border" />
+                <h1 class="font-display text-5xl text-primary text-shadow-glow">购买 GDOG</h1>
+                <p class="text-light-gray mt-2">发送 GT 即可获得 GDOG，累积后可领取</p>
+            </div>
 
-    const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
-    const RPC_LIST = [
-        'https://gatelayer-mainnet.gatenode.cc',
-        'https://rpc.gatelayer.io'
-    ];
+            <div class="bg-dark/50 p-6 rounded-xl border border-primary/30 space-y-5">
+                <button id="connectWalletButton" class="w-full py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">
+                    连接钱包
+                </button>
 
-    const ABI = [ /* 你的 ABI */ ];
+                <div id="userInfo" class="hidden space-y-3 text-sm">
+                    <div class="flex justify-between"><span class="text-light-gray">已投入 GT:</span> <span id="gtSpent">0</span></div>
+                    <div class="flex justify-between"><span class="text-light-gray">可领取 GDOG:</span> <span id="gdogPending">0</span></div>
+                    <div class="flex justify-between"><span class="text-light-gray">购买次数:</span> <span id="purchases">0</span></div>
+                </div>
 
-    let web3, account, rpcWeb3, rpcIndex = 0;
+                <div>
+                    <label class="block text-left text-light-gray mb-2">投入 GT 数量</label>
+                    <input id="amount" type="text" placeholder="例如: 1.5" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary" />
+                </div>
 
-    // 初始化 RPC Web3（用于查询）
-    async function initRpcWeb3() {
-        const rpc = RPC_LIST[rpcIndex];
-        rpcWeb3 = new Web3(rpc);
-        try {
-            await rpcWeb3.eth.getBlockNumber();
-            return true;
-        } catch {
-            rpcIndex = (rpcIndex + 1) % RPC_LIST.length;
-            if (rpcIndex === 0) return false;
-            return initRpcWeb3();
-        }
-    }
+                <button id="buyButton" class="w-full py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all disabled:bg-dark/50 disabled:cursor-not-allowed" disabled>
+                    购买 GDOG
+                </button>
 
-    async function initializeWeb3() {
-        if (!window.ethereum) {
-            updateStatus('请安装 MetaMask', 'error');
-            return;
-        }
+                <button id="claimButton" class="w-full py-3 bg-secondary text-dark rounded-full font-medium hover:bg-secondary/80 transition-all hidden">
+                    领取 GDOG
+                </button>
 
-        web3 = new Web3(window.ethereum);
+                <p id="status" class="text-light-gray text-center text-sm min-h-6">请连接钱包</p>
+            </div>
 
-        try {
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
-            account = (await web3.eth.getAccounts())[0];
-            if (!account) throw new Error('No account');
+            <div class="mt-6 text-center text-xs text-light-gray">
+                合约地址: <span class="font-mono">0x9815...DD38</span>
+            </div>
+        </div>
+    </section>
 
-            document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
-            await switchNetwork('GateLayer');
+    <footer class="bg-dark/95 py-8 border-t border-primary/20 text-center text-light-gray text-sm">
+        © 2025 GDOG. DYOR & 投资有风险
+    </footer>
 
-            // 初始化 RPC 查询
-            if (!await initRpcWeb3()) {
-                updateStatus('网络错误，请刷新', 'error');
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
+    <script>
+        const CONTRACT_ADDRESS = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
+        const GDOG_ADDRESS = '0xf6D9Cf57e20bA0d33372E8998A9424aa53411E04';
+        const WGT = '0x6803b8E93b13941F6B73b82E324B80251B3dE338';
+
+        const contractABI = [
+            {"inputs":[],"stateMutability":"nonpayable","type":"constructor"},
+            {"anonymous":false,"inputs":[{"indexed":true,"name":"buyer","type":"address"},{"indexed":false,"name":"gtAmount","type":"uint256"},{"indexed":false,"name":"gdogAmount","type":"uint256"},{"indexed":false,"name":"totalPurchases","type":"uint256"}],"name":"Purchased","type":"event"},
+            {"anonymous":false,"inputs":[{"indexed":true,"name":"user","type":"address"},{"indexed":false,"name":"gdogAmount","type":"uint256"}],"name":"Withdrawn","type":"event"},
+            {"inputs":[{"name":"user","type":"address"}],"name":"getUserInfo","outputs":[{"name":"gtSpent","type":"uint256"},{"name":"gdogPending","type":"uint256"},{"name":"totalGdogBalance","type":"uint256"},{"name":"purchases","type":"uint256"}],"stateMutability":"view","type":"function"},
+            {"inputs":[{"name":"","type":"address"}],"name":"gtInvested","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+            {"inputs":[{"name":"","type":"address"}],"name":"gdogClaimable","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+            {"inputs":[{"name":"","type":"address"}],"name":"purchaseCount","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+            {"inputs":[],"name":"withdrawGDOG","outputs":[],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[],"name":"withdrawEnabled","outputs":[{"name":"","type":"bool"}],"stateMutability":"view","type":"function"}
+        ];
+
+        const erc20ABI = [
+            {"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"},
+            {"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"type":"function"},
+            {"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"type":"function"}
+        ];
+
+        let web3, account, contract, gdogToken;
+        const connectButton = document.getElementById('connectWalletButton');
+        const buyButton = document.getElementById('buyButton');
+        const claimButton = document.getElementById('claimButton');
+        const amountInput = document.getElementById('amount');
+        const status = document.getElementById('status');
+        const userInfo = document.getElementById('userInfo');
+
+        async function init() {
+            if (window.ethereum) {
+                web3 = new Web3(window.ethereum);
+                await switchToGateLayer();
+            } else {
+                status.textContent = '请安装 MetaMask';
                 return;
             }
-
-            const contract = new rpcWeb3.eth.Contract(ABI, PURCHASE_CONTRACT);
-            await loadUserInfo(contract);
-            setInterval(() => loadUserInfo(contract), 10000);
-
-            // 监听账号变化
-            window.ethereum.on('accountsChanged', (accounts) => {
-                if (accounts.length === 0) location.reload();
-                account = accounts[0];
-                loadUserInfo(contract);
-            });
-
-        } catch (error) {
-            document.getElementById('connectWalletButton').innerText = 'Connect Wallet';
-            updateStatus('连接失败：' + (error.message || '拒绝'), 'error');
+            connectButton.onclick = connectWallet;
+            buyButton.onclick = buyGDOG;
+            claimButton.onclick = claimGDOG;
+            amountInput.oninput = () => updateBuyButton();
         }
-    }
 
-    async function switchNetwork(chain) {
-        const chainConfig = chains[chain];
-        try {
-            await window.ethereum.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: `0x${chainConfig.chainId.toString(16)}` }]
-            });
-        } catch (e) {
-            if (e.code === 4902) {
+        async function switchToGateLayer() {
+            try {
                 await window.ethereum.request({
-                    method: 'wallet_addEthereumChain',
-                    params: [{
-                        chainId: `0x${chainConfig.chainId.toString(16)}`,
-                        chainName: chainConfig.chainName,
-                        rpcUrls: [chainConfig.rpcUrl],
-                        nativeCurrency: chainConfig.nativeCurrency,
-                        blockExplorerUrls: [chainConfig.blockExplorer]
-                    }]
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x2768' }]
                 });
+            } catch (error) {
+                if (error.code === 4902) {
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [{
+                            chainId: '0x2768',
+                            chainName: 'Gate Layer',
+                            rpcUrls: ['https://gatelayer-mainnet.gatenode.cc/'],
+                            nativeCurrency: { name: 'GT', symbol: 'GT', decimals: 18 },
+                            blockExplorerUrls: ['https://www.gatescan.org/gatelayer/']
+                        }]
+                    });
+                }
             }
         }
-    }
 
-    async function loadUserInfo(contract) {
-        if (!account) return;
-        try {
-            const [gt, pending, total, purchases] = await contract.methods.getUserInfo(account).call();
-            const enabled = await contract.methods.withdrawEnabled().call();
+        async function connectWallet() {
+            try {
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                account = (await web3.eth.getAccounts())[0];
+                contract = new web3.eth.Contract(contractABI, CONTRACT_ADDRESS);
+                gdogToken = new web3.eth.Contract(erc20ABI, GDOG_ADDRESS);
 
-            // 显示原始值（与 GateScan 一致）
-            document.getElementById('gtSpent').innerText = gt;
-            document.getElementById('gdogPending').innerText = pending;
-            document.getElementById('totalGdog').innerText = total;
-            document.getElementById('purchases').innerText = purchases;
-
-            const canWithdraw = enabled && BigInt(pending) > 0n;
-            const statusEl = document.getElementById('withdrawText');
-            const btn = document.getElementById('withdrawBtn');
-
-            if (canWithdraw) {
-                statusEl.textContent = '可领取';
-                statusEl.className = 'text-green-400';
-                btn.classList.remove('hidden');
-                btn.onclick = () => withdrawGDOG(web3, account);
-            } else {
-                statusEl.textContent = enabled ? '无可领 GDOG' : '未开放领取';
-                statusEl.className = 'text-red-400';
-                btn.classList.add('hidden');
+                connectButton.innerHTML = `已连接: ${account.slice(0,6)}...${account.slice(-4)}`;
+                connectButton.disabled = true;
+                buyButton.disabled = false;
+                userInfo.classList.remove('hidden');
+                await updateUserInfo();
+                setInterval(updateUserInfo, 10000);
+            } catch (err) {
+                status.textContent = '连接失败';
             }
-
-            document.getElementById('userInfo').classList.remove('hidden');
-            updateStatus('数据已更新');
-        } catch (err) {
-            console.error('查询失败', err);
-            updateStatus('查询失败，3秒后重试...', 'error');
-            setTimeout(() => loadUserInfo(contract), 3000);
         }
-    }
 
-    async function withdrawGDOG(web3, account) {
-        const btn = document.getElementById('withdrawBtn');
-        btn.disabled = true;
-        btn.innerHTML = '领取中... <i class="fa fa-spinner fa-spin ml-2"></i>';
-        try {
-            const contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
-            const tx = await contract.methods.withdrawGDOG().send({ from: account });
-            updateStatus(`领取成功！Tx: ${tx.transactionHash.slice(0,10)}...`);
-            setTimeout(() => location.reload(), 2000);
-        } catch (err) {
-            updateStatus('领取失败：' + (err.message || '拒绝'), 'error');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '领取 GDOG';
+        async function updateUserInfo() {
+            if (!account) return;
+            try {
+                const info = await contract.methods.getUserInfo(account).call();
+                document.getElementById('gtSpent').textContent = web3.utils.fromWei(info.gtSpent, 'ether');
+                document.getElementById('gdogPending').textContent = web3.utils.fromWei(info.gdogPending, 'ether');
+                document.getElementById('purchases').textContent = info.purchases;
+
+                const enabled = await contract.methods.withdrawEnabled().call();
+                if (parseFloat(info.gdogPending) > 0 && enabled) {
+                    claimButton.classList.remove('hidden');
+                } else {
+                    claimButton.classList.add('hidden');
+                }
+            } catch (err) {
+                console.error(err);
+            }
         }
-    }
 
-    function updateStatus(msg, type = 'info') {
-        const el = document.getElementById('progressStatus');
-        el.textContent = msg;
-        el.className = type === 'error' ? 'text-red-400 text-sm' : 'text-light-gray text-sm';
-    }
+        function updateBuyButton() {
+            const amount = amountInput.value.trim();
+            buyButton.disabled = !amount || isNaN(amount) || parseFloat(amount) <= 0;
+        }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('connectWalletButton').addEventListener('click', initializeWeb3);
-    });
-</script>
+        async function buyGDOG() {
+            const amount = amountInput.value.trim();
+            if (!amount || parseFloat(amount) <= 0) return;
+
+            const wei = web3.utils.toWei(amount, 'ether');
+            buyButton.innerHTML = '购买中...';
+            buyButton.disabled = true;
+            status.textContent = '发送交易中...';
+
+            try {
+                await contract.methods.receive().send({
+                    from: account,
+                    value: wei
+                });
+                status.textContent = '购买成功！GDOG 已累积';
+                amountInput.value = '';
+                await updateUserInfo();
+            } catch (err) {
+                if (err.code === 4001) {
+                    status.textContent = '交易已取消';
+                } else {
+                    status.textContent = '购买失败：' + (err.message || '未知错误');
+                }
+            } finally {
+                buyButton.innerHTML = '购买 GDOG';
+                updateBuyButton();
+            }
+        }
+
+        async function claimGDOG() {
+            claimButton.innerHTML = '领取中...';
+            claimButton.disabled = true;
+            status.textContent = '领取 GDOG 中...';
+
+            try {
+                await contract.methods.withdrawGDOG().send({ from: account });
+                status.textContent = '领取成功！';
+                await updateUserInfo();
+            } catch (err) {
+                if (err.code === 4001) {
+                    status.textContent = '已取消领取';
+                } else {
+                    status.textContent = '领取失败：提现未开启或无余额';
+                }
+            } finally {
+                claimButton.innerHTML = '领取 GDOG';
+                claimButton.disabled = false;
+            }
+        }
+
+        window.addEventListener('load', init);
+    </script>
 </body>
 </html>
