@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GDOG 购买查询</title>
+    <link rel="icon" type="image/png" href="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0068FF',
+                        secondary: '#18E5A0',
+                        accent: '#FFD700',
+                        dark: '#070808',
+                        'light-gray': '#E5E7EB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        display: ['Changa One', 'system-ui', 'sans-serif']
+                    },
+                    animation: { 'float': 'float 3s ease-in-out infinite' },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-8px)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow-glow { text-shadow: 0 0 10px rgba(0,104,255,0.5); }
+            .glow-border { box-shadow: 0 0 12px rgba(24,229,160,0.3); }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Changa+One&display=swap" rel="stylesheet">
+</head>
+<body class="bg-dark text-white font-sans overflow-x-hidden">
+
+<header class="fixed w-full z-50 bg-dark/90 backdrop-blur-md">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full overflow-hidden">
+                <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png" alt="Logo" class="w-full h-full object-cover">
+            </div>
+            <span class="font-display text-3xl text-primary text-shadow-glow">GDOG 查询</span>
+        </div>
+    </div>
+</header>
+
+<section class="min-h-screen pt-24 flex items-center justify-center bg-gradient-to-b from-primary/10 to-dark">
+    <div class="container mx-auto px-4 text-center">
+        <div class="w-48 h-48 mx-auto mb-8 animate-float">
+            <img src="https://woofinglabs.github.io/GdogToTheMoon/images/gdog_logo.png"
+                 alt="GDOG" class="w-full h-full object-cover rounded-full border-4 border-secondary/50 glow-border">
+        </div>
+
+        <div class="bg-dark/50 p-8 rounded-lg border border-primary/30 max-w-md mx-auto space-y-6">
+            <button id="connectBtn"
+                    class="w-full px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">
+                连接钱包
+            </button>
+
+            <p id="status" class="text-light-gray text-sm">请先连接钱包</p>
+
+            <div id="info" class="hidden space-y-4 text-left">
+                <div class="flex justify-between">
+                    <span class="text-light-gray">已投入 GT</span>
+                    <span id="gtSpent" class="font-mono text-secondary">0</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-light-gray">可领 GDOG</span>
+                    <span id="gdogPending" class="font-mono text-secondary">0</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-light-gray">合约 GDOG 余额</span>
+                    <span id="totalGdog" class="font-mono text-secondary">0</span>
+                </div>
+
+                <!-- 领取状态提示 -->
+                <div id="withdrawStatus" class="mt-4 p-3 rounded-lg text-center font-medium">
+                    <span id="withdrawText" class="text-red-400">不可领取</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
+<script>
+    const PURCHASE_CONTRACT = '0x36265d901c34F04eed95aD3f1337222597C3971C';
+    const GDOG = '0xf6D9Cf57e20bA0d33372E8998A9424aa53411E04';
+
+    const abi = [
+        {
+            "inputs": [{"internalType":"address","name":"user","type":"address"}],
+            "name":"getUserInfo",
+            "outputs":[
+                {"internalType":"uint256","name":"gtSpent","type":"uint256"},
+                {"internalType":"uint256","name":"gdogPending","type":"uint256"},
+                {"internalType":"uint256","name":"totalGdogBalance","type":"uint256"}
+            ],
+            "stateMutability":"view","type":"function"
+        },
+        {
+            "inputs": [],
+            "name":"withdrawEnabled",
+            "outputs": [{"internalType":"bool","name":"","type":"bool"}],
+            "stateMutability":"view",
+            "type":"function"
+        }
+    ];
+
+    let web3, account, contract;
+
+    async function init() {
+        if (!window.ethereum) {
+            alert('请安装 MetaMask');
+            return;
+        }
+        web3 = new Web3(window.ethereum);
+        await switchToGateLayer();
+        contract = new web3.eth.Contract(abi, PURCHASE_CONTRACT);
+        document.getElementById('connectBtn').onclick = connect;
+    }
+
+    async function switchToGateLayer() {
+        const target = '0x2768';
+        try {
+            await ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: target }] });
+        } catch (e) {
+            if (e.code === 4902) {
+                await ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: target,
+                        chainName: 'Gate Layer',
+                        rpcUrls: ['https://gatelayer-mainnet.gatenode.cc/'],
+                        nativeCurrency: { name: 'GT', symbol: 'GT', decimals: 18 },
+                        blockExplorerUrls: ['https://www.gatescan.org/gatelayer/']
+                    }]
+                });
+            }
+        }
+    }
+
+    async function connect() {
+        try {
+            const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+            account = accounts[0];
+            document.getElementById('connectBtn').innerText = `${account.slice(0,6)}...${account.slice(-4)}`;
+            document.getElementById('status').innerText = '已连接';
+            await refreshInfo();
+            setInterval(refreshInfo, 8000);
+        } catch (e) {
+            document.getElementById('status').innerText = '连接失败';
+        }
+    }
+
+    async function refreshInfo() {
+        if (!account) return;
+        try {
+            const [gt, pending, total] = await contract.methods.getUserInfo(account).call();
+            const enabled = await contract.methods.withdrawEnabled().call();
+
+            const fmt = n => (Number(web3.utils.fromWei(n, 'ether'))).toFixed(6);
+            document.getElementById('gtSpent').innerText = fmt(gt);
+            document.getElementById('gdogPending').innerText = fmt(pending);
+            document.getElementById('totalGdog').innerText = fmt(total);
+
+            const statusEl = document.getElementById('withdrawText');
+            if (enabled) {
+                statusEl.textContent = '可领取';
+                statusEl.className = 'text-green-400';
+            } else {
+                statusEl.textContent = '不可领取';
+                statusEl.className = 'text-red-400';
+            }
+
+            document.getElementById('info').classList.remove('hidden');
+            document.getElementById('withdrawStatus').classList.remove('hidden');
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    window.addEventListener('load', init);
+</script>
+</body>
+</html>
