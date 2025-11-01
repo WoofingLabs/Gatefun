@@ -115,10 +115,8 @@
         }
     };
 
-    // 合约地址
     const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
 
-    // ABI
     const ABI = [
         {
             "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
@@ -150,22 +148,10 @@
 
     let web3, account, contract;
 
-    // 初始化 Web3（使用你 HTML 的 RPC）
-    async function initWeb3() {
-        web3 = new Web3(chains.GateLayer.rpcUrl);
-        try {
-            await web3.eth.getBlockNumber(); // 测试连接
-            contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
-            return true;
-        } catch (err) {
-            console.error('RPC 连接失败', err);
-            updateStatus('网络错误，请刷新页面', 'error');
-            return false;
-        }
-    }
-
+    // === 完全复用你原来的连接函数名和逻辑 ===
     async function initializeWeb3() {
         if (window.ethereum) {
+            web3 = new Web3(window.ethereum);  // 先用 MetaMask
             try {
                 await window.ethereum.request({ method: 'eth_requestAccounts' });
                 account = (await web3.eth.getAccounts())[0];
@@ -173,6 +159,7 @@
                 document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0, 6)}...${account.slice(-4)}`;
                 await switchNetwork('GateLayer');
                 document.getElementById('networkStatus').innerText = 'Connected to Gate Layer (ID: 10088)';
+                contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);  // 最后创建合约
                 await loadUserInfo();
                 setInterval(loadUserInfo, 10000);
             } catch (error) {
@@ -185,7 +172,7 @@
         }
     }
 
-    // 完全复用你 HTML 的 switchNetwork
+    // === 完全复用你原来的 switchNetwork ===
     async function switchNetwork(chain) {
         const chainConfig = chains[chain];
         try {
@@ -211,6 +198,7 @@
         }
     }
 
+    // 查询
     async function loadUserInfo() {
         if (!account || !contract) return;
         try {
@@ -270,11 +258,9 @@
         el.className = type === 'error' ? 'text-red-400 text-sm' : 'text-light-gray text-sm';
     }
 
-    // 初始化
-    document.addEventListener('DOMContentLoaded', async () => {
-        if (await initWeb3()) {
-            document.getElementById('connectWalletButton').addEventListener('click', initializeWeb3);
-        }
+    // === 完全复用你原来的绑定方式 ===
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('connectWalletButton').addEventListener('click', initializeWeb3);
     });
 </script>
 </body>
