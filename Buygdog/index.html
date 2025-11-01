@@ -62,7 +62,6 @@
         </div>
 
         <div class="bg-dark/50 p-8 rounded-lg border border-primary/30 max-w-md mx-auto space-y-6">
-            <!-- 连接按钮（与原页面一致） -->
             <button id="connectWalletButton"
                     class="w-full px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">
                 Connect Wallet
@@ -71,7 +70,6 @@
             <p id="networkStatus" class="text-light-gray text-sm">Click to connect wallet...</p>
             <p id="progressStatus" class="text-light-gray text-sm">Waiting for action...</p>
 
-            <!-- 查询结果 -->
             <div id="userInfo" class="hidden space-y-4 text-left">
                 <div class="flex justify-between">
                     <span class="text-light-gray">已投入 GT</span>
@@ -90,7 +88,6 @@
                     <span id="purchases" class="font-mono text-secondary">0</span>
                 </div>
 
-                <!-- 领取状态 + 按钮 -->
                 <div id="withdrawSection" class="mt-6">
                     <div id="withdrawStatus" class="p-3 rounded-lg text-center font-medium mb-3">
                         <span id="withdrawText" class="text-red-400">不可领取</span>
@@ -107,15 +104,19 @@
 
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
 <script>
-    // 合约信息
-    const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
-    const TARGET_CHAIN_ID = '0x2768'; // GateLayer
+    // === 完全复用你 HTML 的链配置 ===
+    const chains = {
+        GateLayer: {
+            chainId: 10088,
+            chainName: 'Gate Layer',
+            rpcUrl: 'https://gatelayer-mainnet.gatenode.cc',
+            blockExplorer: 'https://www.gatescan.org/gatelayer/',
+            nativeCurrency: { name: 'GT', symbol: 'GT', decimals: 18 }
+        }
+    };
 
-    // 官方 RPC 列表（防止节点失败）
-    const RPC_LIST = [
-        'https://gatelayer-mainnet.gatenode.cc/',
-        'https://rpc.gatelayer.io/'
-    ];
+    // 合约地址
+    const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
 
     // ABI
     const ABI = [
@@ -148,91 +149,68 @@
     ];
 
     let web3, account, contract;
-    let rpcIndex = 0;
 
-    // 初始化 Web3（使用官方 RPC）
+    // 初始化 Web3（使用你 HTML 的 RPC）
     async function initWeb3() {
-        const rpc = RPC_LIST[rpcIndex];
-        web3 = new Web3(rpc);
+        web3 = new Web3(chains.GateLayer.rpcUrl);
         try {
+            await web3.eth.getBlockNumber(); // 测试连接
             contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
-            await testRPC();
             return true;
         } catch (err) {
-            console.warn(`RPC ${rpc} 失败，切换下一个...`);
-            rpcIndex = (rpcIndex + 1) % RPC_LIST.length;
-            if (rpcIndex === 0) throw new Error('所有节点不可用');
-            return initWeb3();
+            console.error('RPC 连接失败', err);
+            updateStatus('网络错误，请刷新页面', 'error');
+            return false;
         }
     }
 
-    async function testRPC() {
-        try {
-            await web3.eth.getBlockNumber();
-        } catch {
-            throw new Error('RPC 不可用');
+    async function initializeWeb3() {
+        if (window.ethereum) {
+            try {
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                account = (await web3.eth.getAccounts())[0];
+                if (!account) throw new Error('No account');
+                document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0, 6)}...${account.slice(-4)}`;
+                await switchNetwork('GateLayer');
+                document.getElementById('networkStatus').innerText = 'Connected to Gate Layer (ID: 10088)';
+                await loadUserInfo();
+                setInterval(loadUserInfo, 10000);
+            } catch (error) {
+                document.getElementById('networkStatus').innerText = 'Wallet connection failed';
+                document.getElementById('progressStatus').innerText = `Error: ${error.message}`;
+                document.getElementById('connectWalletButton').innerText = 'Connect Wallet';
+            }
+        } else {
+            document.getElementById('networkStatus').innerText = 'Please install MetaMask';
         }
     }
 
-    // 初始化
-    async function init() {
-        if (!window.ethereum) {
-            updateStatus('请安装 MetaMask', 'error');
-            return;
-        }
-        try {
-            await initWeb3();
-        } catch (err) {
-            updateStatus('网络错误，请刷新', 'error');
-            return;
-        }
-        document.getElementById('connectWalletButton').onclick = connectWallet;
-    }
-
-    // 连接钱包（与原页面完全一致）
-    async function connectWallet() {
-        try {
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
-            const accounts = await web3.eth.getAccounts();
-            account = accounts[0];
-            if (!account) throw new Error('未获取到账户');
-            document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
-            updateStatus('连接成功，查询中...');
-            await switchNetwork();
-            await loadUserInfo();
-            setInterval(loadUserInfo, 10000);
-        } catch (err) {
-            document.getElementById('connectWalletButton').innerText = 'Connect Wallet';
-            updateStatus('连接失败：' + (err.message || '拒绝'), 'error');
-        }
-    }
-
-    // 切换网络（与原页面完全一致）
-    async function switchNetwork() {
+    // 完全复用你 HTML 的 switchNetwork
+    async function switchNetwork(chain) {
+        const chainConfig = chains[chain];
         try {
             await window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
-                params: [{ chainId: TARGET_CHAIN_ID }]
+                params: [{ chainId: `0x${chainConfig.chainId.toString(16)}` }]
             });
-        } catch (e) {
-            if (e.code === 4902) {
-                try {
-                    await window.ethereum.request({
-                        method: 'wallet_addEthereumChain',
-                        params: [{
-                            chainId: TARGET_CHAIN_ID,
-                            chainName: 'Gate Layer',
-                            rpcUrls: ['https://gatelayer-mainnet.gatenode.cc/'],
-                            nativeCurrency: { name: 'GT', symbol: 'GT', decimals: 18 },
-                            blockExplorerUrls: ['https://www.gatescan.org/gatelayer/']
-                        }]
-                    });
-                } catch { }
+        } catch (switchError) {
+            if (switchError.code === 4902) {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: `0x${chainConfig.chainId.toString(16)}`,
+                        chainName: chainConfig.chainName,
+                        rpcUrls: [chainConfig.rpcUrl],
+                        nativeCurrency: chainConfig.nativeCurrency,
+                        blockExplorerUrls: [chainConfig.blockExplorer]
+                    }]
+                });
+            } else {
+                throw switchError;
             }
         }
     }
 
-    // 查询用户信息（带重试）
     async function loadUserInfo() {
         if (!account || !contract) return;
         try {
@@ -264,18 +242,16 @@
             document.getElementById('userInfo').classList.remove('hidden');
             updateStatus('数据已更新');
         } catch (err) {
-            console.error('查询失败', err);
+            console.error(err);
             updateStatus('查询失败，3秒后重试...', 'error');
             setTimeout(loadUserInfo, 3000);
         }
     }
 
-    // 领取
     async function withdrawGDOG() {
         const btn = document.getElementById('withdrawBtn');
         btn.disabled = true;
         btn.innerHTML = '领取中... <i class="fa fa-spinner fa-spin ml-2"></i>';
-
         try {
             const tx = await contract.methods.withdrawGDOG().send({ from: account });
             updateStatus(`领取成功！Tx: ${tx.transactionHash.slice(0,10)}...`);
@@ -294,7 +270,12 @@
         el.className = type === 'error' ? 'text-red-400 text-sm' : 'text-light-gray text-sm';
     }
 
-    window.addEventListener('load', init);
+    // 初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (await initWeb3()) {
+            document.getElementById('connectWalletButton').addEventListener('click', initializeWeb3);
+        }
+    });
 </script>
 </body>
 </html>
