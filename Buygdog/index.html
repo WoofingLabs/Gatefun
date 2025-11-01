@@ -107,11 +107,17 @@
 
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
 <script>
-    // 合约地址（你提供的）
+    // 合约信息
     const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
-    const TARGET_CHAIN_ID = '0x2768';
+    const TARGET_CHAIN_ID = '0x2768'; // GateLayer
 
-    // ABI（与你合约一致）
+    // 官方 RPC 列表（防止节点失败）
+    const RPC_LIST = [
+        'https://gatelayer-mainnet.gatenode.cc/',
+        'https://rpc.gatelayer.io/'
+    ];
+
+    // ABI
     const ABI = [
         {
             "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
@@ -142,6 +148,31 @@
     ];
 
     let web3, account, contract;
+    let rpcIndex = 0;
+
+    // 初始化 Web3（使用官方 RPC）
+    async function initWeb3() {
+        const rpc = RPC_LIST[rpcIndex];
+        web3 = new Web3(rpc);
+        try {
+            contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
+            await testRPC();
+            return true;
+        } catch (err) {
+            console.warn(`RPC ${rpc} 失败，切换下一个...`);
+            rpcIndex = (rpcIndex + 1) % RPC_LIST.length;
+            if (rpcIndex === 0) throw new Error('所有节点不可用');
+            return initWeb3();
+        }
+    }
+
+    async function testRPC() {
+        try {
+            await web3.eth.getBlockNumber();
+        } catch {
+            throw new Error('RPC 不可用');
+        }
+    }
 
     // 初始化
     async function init() {
@@ -149,22 +180,27 @@
             updateStatus('请安装 MetaMask', 'error');
             return;
         }
-        web3 = new Web3(window.ethereum);
-        contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
+        try {
+            await initWeb3();
+        } catch (err) {
+            updateStatus('网络错误，请刷新', 'error');
+            return;
+        }
         document.getElementById('connectWalletButton').onclick = connectWallet;
     }
 
     // 连接钱包（与原页面完全一致）
     async function connectWallet() {
         try {
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const accounts = await web3.eth.getAccounts();
             account = accounts[0];
-            if (!account) throw new Error('No account');
+            if (!account) throw new Error('未获取到账户');
             document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
             updateStatus('连接成功，查询中...');
             await switchNetwork();
             await loadUserInfo();
-            setInterval(loadUserInfo, 8000);
+            setInterval(loadUserInfo, 10000);
         } catch (err) {
             document.getElementById('connectWalletButton').innerText = 'Connect Wallet';
             updateStatus('连接失败：' + (err.message || '拒绝'), 'error');
@@ -196,9 +232,9 @@
         }
     }
 
-    // 查询用户信息
+    // 查询用户信息（带重试）
     async function loadUserInfo() {
-        if (!account) return;
+        if (!account || !contract) return;
         try {
             const [gt, pending, total, purchases] = await contract.methods.getUserInfo(account).call();
             const enabled = await contract.methods.withdrawEnabled().call();
@@ -228,13 +264,13 @@
             document.getElementById('userInfo').classList.remove('hidden');
             updateStatus('数据已更新');
         } catch (err) {
-            console.error(err);
+            console.error('查询失败', err);
             updateStatus('查询失败，3秒后重试...', 'error');
             setTimeout(loadUserInfo, 3000);
         }
     }
 
-    // 领取 GDOG
+    // 领取
     async function withdrawGDOG() {
         const btn = document.getElementById('withdrawBtn');
         btn.disabled = true;
@@ -255,7 +291,7 @@
     function updateStatus(msg, type = 'info') {
         const el = document.getElementById('progressStatus');
         el.textContent = msg;
-        el.className = type === 'error' ? 'text-red-400' : 'text-light-gray';
+        el.className = type === 'error' ? 'text-red-400 text-sm' : 'text-light-gray text-sm';
     }
 
     window.addEventListener('load', init);
