@@ -69,6 +69,9 @@
 
             <p id="status" class="text-light-gray text-sm">请先连接钱包</p>
 
+            <!-- 错误提示 -->
+            <p id="errorMsg" class="text-red-400 text-sm hidden"></p>
+
             <div id="info" class="hidden space-y-4 text-left">
                 <div class="flex justify-between">
                     <span class="text-light-gray">已投入 GT</span>
@@ -83,7 +86,6 @@
                     <span id="totalGdog" class="font-mono text-secondary">0</span>
                 </div>
 
-                <!-- 领取状态提示 -->
                 <div id="withdrawStatus" class="mt-4 p-3 rounded-lg text-center font-medium">
                     <span id="withdrawText" class="text-red-400">不可领取</span>
                 </div>
@@ -95,25 +97,27 @@
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
 <script>
     const PURCHASE_CONTRACT = '0x36265d901c34F04eed95aD3f1337222597C3971C';
-    const GDOG = '0xf6D9Cf57e20bA0d33372E8998A9424aa53411E04';
+    const TARGET_CHAIN_ID = '0x2768';
 
-    const abi = [
-        {
-            "inputs": [{"internalType":"address","name":"user","type":"address"}],
-            "name":"getUserInfo",
-            "outputs":[
-                {"internalType":"uint256","name":"gtSpent","type":"uint256"},
-                {"internalType":"uint256","name":"gdogPending","type":"uint256"},
-                {"internalType":"uint256","name":"totalGdogBalance","type":"uint256"}
-            ],
-            "stateMutability":"view","type":"function"
-        },
+    // 完整 ABI（包含 withdrawEnabled）
+    const ABI = [
         {
             "inputs": [],
-            "name":"withdrawEnabled",
-            "outputs": [{"internalType":"bool","name":"","type":"bool"}],
-            "stateMutability":"view",
-            "type":"function"
+            "name": "withdrawEnabled",
+            "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
+            "name": "getUserInfo",
+            "outputs": [
+                {"internalType": "uint256", "name": "gtSpent", "type": "uint256"},
+                {"internalType": "uint256", "name": "gdogPending", "type": "uint256"},
+                {"internalType": "uint256", "name": "totalGdogBalance", "type": "uint256"}
+            ],
+            "stateMutability": "view",
+            "type": "function"
         }
     ];
 
@@ -121,45 +125,52 @@
 
     async function init() {
         if (!window.ethereum) {
-            alert('请安装 MetaMask');
+            showError('请安装 MetaMask 或其他 Web3 钱包');
             return;
         }
         web3 = new Web3(window.ethereum);
-        await switchToGateLayer();
-        contract = new web3.eth.Contract(abi, PURCHASE_CONTRACT);
-        document.getElementById('connectBtn').onclick = connect;
+        contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
+        document.getElementById('connectBtn').onclick = connectWallet;
+        await ensureNetwork();
     }
 
-    async function switchToGateLayer() {
-        const target = '0x2768';
+    async function ensureNetwork() {
         try {
-            await ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: target }] });
-        } catch (e) {
-            if (e.code === 4902) {
-                await ethereum.request({
-                    method: 'wallet_addEthereumChain',
-                    params: [{
-                        chainId: target,
-                        chainName: 'Gate Layer',
-                        rpcUrls: ['https://gatelayer-mainnet.gatenode.cc/'],
-                        nativeCurrency: { name: 'GT', symbol: 'GT', decimals: 18 },
-                        blockExplorerUrls: ['https://www.gatescan.org/gatelayer/']
-                    }]
-                });
+            await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: TARGET_CHAIN_ID }]
+            });
+        } catch (switchError) {
+            if (switchError.code === 4902) {
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [{
+                            chainId: TARGET_CHAIN_ID,
+                            chainName: 'Gate Layer',
+                            rpcUrls: ['https://gatelayer-mainnet.gatenode.cc/'],
+                            nativeCurrency: { name: 'GT', symbol: 'GT', decimals: 18 },
+                            blockExplorerUrls: ['https://www.gatescan.org/gatelayer/']
+                        }]
+                    });
+                } catch (addError) {
+                    showError('无法添加 GateLayer 网络');
+                }
             }
         }
     }
 
-    async function connect() {
+    async function connectWallet() {
         try {
-            const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
             account = accounts[0];
             document.getElementById('connectBtn').innerText = `${account.slice(0,6)}...${account.slice(-4)}`;
-            document.getElementById('status').innerText = '已连接';
+            document.getElementById('status').innerText = '读取中...';
+            hideError();
             await refreshInfo();
             setInterval(refreshInfo, 8000);
-        } catch (e) {
-            document.getElementById('status').innerText = '连接失败';
+        } catch (err) {
+            showError('连接失败：' + (err.message || '用户拒绝'));
         }
     }
 
@@ -169,13 +180,14 @@
             const [gt, pending, total] = await contract.methods.getUserInfo(account).call();
             const enabled = await contract.methods.withdrawEnabled().call();
 
-            const fmt = n => (Number(web3.utils.fromWei(n, 'ether'))).toFixed(6);
+            const fmt = n => Number(web3.utils.fromWei(n, 'ether')).toFixed(6).replace(/\.?0+$/, '');
+
             document.getElementById('gtSpent').innerText = fmt(gt);
             document.getElementById('gdogPending').innerText = fmt(pending);
             document.getElementById('totalGdog').innerText = fmt(total);
 
             const statusEl = document.getElementById('withdrawText');
-            if (enabled) {
+            if (enabled && Number(pending) > 0) {
                 statusEl.textContent = '可领取';
                 statusEl.className = 'text-green-400';
             } else {
@@ -184,10 +196,22 @@
             }
 
             document.getElementById('info').classList.remove('hidden');
-            document.getElementById('withdrawStatus').classList.remove('hidden');
-        } catch (e) {
-            console.error(e);
+            document.getElementById('status').innerText = '已连接';
+            hideError();
+        } catch (err) {
+            console.error('读取失败', err);
+            showError('数据读取失败，请检查网络或刷新页面');
         }
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+
+    function hideError() {
+        document.getElementById('errorMsg').classList.add('hidden');
     }
 
     window.addEventListener('load', init);
