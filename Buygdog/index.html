@@ -63,7 +63,7 @@
 
         <div class="bg-dark/50 p-8 rounded-lg border border-primary/30 max-w-md mx-auto space-y-6">
             <!-- 连接按钮（与原页面一致） -->
-            <button id="connectBtn"
+            <button id="connectWalletButton"
                     class="w-full px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">
                 Connect Wallet
             </button>
@@ -85,9 +85,13 @@
                     <span class="text-light-gray">合约 GDOG 余额</span>
                     <span id="totalGdog" class="font-mono text-secondary">0</span>
                 </div>
+                <div class="flex justify-between">
+                    <span class="text-light-gray">购买次数</span>
+                    <span id="purchases" class="font-mono text-secondary">0</span>
+                </div>
 
                 <!-- 领取状态 + 按钮 -->
-                <div id="withdrawSection" class="mt-4">
+                <div id="withdrawSection" class="mt-6">
                     <div id="withdrawStatus" class="p-3 rounded-lg text-center font-medium mb-3">
                         <span id="withdrawText" class="text-red-400">不可领取</span>
                     </div>
@@ -103,11 +107,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
 <script>
-    // 合约信息
-    const PURCHASE_CONTRACT = '0x36265d901c34F04eed95aD3f1337222597C3971C';
+    const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
     const TARGET_CHAIN_ID = '0x2768';
 
-    // 完整 ABI
     const ABI = [
         {
             "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
@@ -115,7 +117,8 @@
             "outputs": [
                 {"internalType": "uint256", "name": "gtSpent", "type": "uint256"},
                 {"internalType": "uint256", "name": "gdogPending", "type": "uint256"},
-                {"internalType": "uint256", "name": "totalGdogBalance", "type": "uint256"}
+                {"internalType": "uint256", "name": "totalGdogBalance", "type": "uint256"},
+                {"internalType": "uint256", "name": "purchases", "type": "uint256"}
             ],
             "stateMutability": "view",
             "type": "function"
@@ -138,30 +141,23 @@
 
     let web3, account, contract;
 
-    // 初始化
     async function init() {
         if (!window.ethereum) {
             updateStatus('请安装 MetaMask', 'error');
             return;
         }
-
-        // 使用官方 RPC，避免查询失败
         web3 = new Web3('https://gatelayer-mainnet.gatenode.cc/');
         contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
-
-        // 监听钱包变化
         window.ethereum.on('accountsChanged', () => location.reload());
         window.ethereum.on('chainChanged', () => location.reload());
-
-        document.getElementById('connectBtn').onclick = connectWallet;
+        document.getElementById('connectWalletButton').onclick = connectWallet;
     }
 
-    // 连接钱包
     async function connectWallet() {
         try {
             await window.ethereum.request({ method: 'eth_requestAccounts' });
             account = (await web3.eth.getAccounts())[0];
-            document.getElementById('connectBtn').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
+            document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
             updateStatus('连接成功，查询中...');
             await ensureNetwork();
             await loadUserInfo();
@@ -171,7 +167,6 @@
         }
     }
 
-    // 确保网络正确
     async function ensureNetwork() {
         try {
             await window.ethereum.request({
@@ -196,22 +191,20 @@
         }
     }
 
-    // 查询用户信息
     async function loadUserInfo() {
         if (!account) return;
         try {
-            const [gt, pending, total] = await contract.methods.getUserInfo(account).call();
+            const [gt, pending, total, purchases] = await contract.methods.getUserInfo(account).call();
             const enabled = await contract.methods.withdrawEnabled().call();
 
-            const fmt = n => Number(web3.utils.fromWei(n, 'ether')).toFixed(6).replace(/\.?0+$/, '');
+            const fmt = n => Number(web3.utils.fromWei(n, 'ether')).toFixed(18).replace(/\.?0+$/, '');
 
             document.getElementById('gtSpent').innerText = fmt(gt);
             document.getElementById('gdogPending').innerText = fmt(pending);
             document.getElementById('totalGdog').innerText = fmt(total);
+            document.getElementById('purchases').innerText = purchases;
 
-            const pendingNum = Number(pending);
-            const canWithdraw = enabled && pendingNum > 0;
-
+            const canWithdraw = enabled && Number(pending) > 0;
             const statusEl = document.getElementById('withdrawText');
             const btn = document.getElementById('withdrawBtn');
 
@@ -229,23 +222,19 @@
             document.getElementById('userInfo').classList.remove('hidden');
             updateStatus('数据已更新');
         } catch (err) {
-            console.error('查询失败', err);
+            console.error(err);
             updateStatus('查询失败，3秒后重试...', 'error');
             setTimeout(loadUserInfo, 3000);
         }
     }
 
-    // 领取 GDOG
     async function withdrawGDOG() {
         const btn = document.getElementById('withdrawBtn');
         btn.disabled = true;
         btn.innerHTML = '领取中... <i class="fa fa-spinner fa-spin ml-2"></i>';
 
         try {
-            const tx = await contract.methods.withdrawGDOG().send({
-                from: account,
-                gas: 200000
-            });
+            const tx = await contract.methods.withdrawGDOG().send({ from: account });
             updateStatus(`领取成功！Tx: ${tx.transactionHash.slice(0,10)}...`);
             await loadUserInfo();
         } catch (err) {
