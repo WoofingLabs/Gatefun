@@ -62,17 +62,17 @@
         </div>
 
         <div class="bg-dark/50 p-8 rounded-lg border border-primary/30 max-w-md mx-auto space-y-6">
-            <button id="connectBtn"
+            <!-- 连接钱包按钮（与原页面一致） -->
+            <button id="connectWalletButton"
                     class="w-full px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">
-                连接钱包
+                Connect Wallet
             </button>
 
-            <p id="status" class="text-light-gray text-sm">请先连接钱包</p>
+            <p id="networkStatus" class="text-light-gray text-sm">Click to connect wallet...</p>
+            <p id="progressStatus" class="text-light-gray text-sm">Waiting for action...</p>
 
-            <!-- 错误提示 -->
-            <p id="errorMsg" class="text-red-400 text-sm hidden"></p>
-
-            <div id="info" class="hidden space-y-4 text-left">
+            <!-- 查询结果 -->
+            <div id="userInfo" class="hidden space-y-4 text-left mt-6">
                 <div class="flex justify-between">
                     <span class="text-light-gray">已投入 GT</span>
                     <span id="gtSpent" class="font-mono text-secondary">0</span>
@@ -85,8 +85,7 @@
                     <span class="text-light-gray">合约 GDOG 余额</span>
                     <span id="totalGdog" class="font-mono text-secondary">0</span>
                 </div>
-
-                <div id="withdrawStatus" class="mt-4 p-3 rounded-lg text-center font-medium">
+                <div class="mt-4 p-3 rounded-lg text-center font-medium">
                     <span id="withdrawText" class="text-red-400">不可领取</span>
                 </div>
             </div>
@@ -96,18 +95,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
 <script>
+    // 合约信息
     const PURCHASE_CONTRACT = '0x36265d901c34F04eed95aD3f1337222597C3971C';
     const TARGET_CHAIN_ID = '0x2768';
 
-    // 完整 ABI（包含 withdrawEnabled）
+    // 完整 ABI（包含 getUserInfo + withdrawEnabled）
     const ABI = [
-        {
-            "inputs": [],
-            "name": "withdrawEnabled",
-            "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
         {
             "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
             "name": "getUserInfo",
@@ -118,28 +111,52 @@
             ],
             "stateMutability": "view",
             "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "withdrawEnabled",
+            "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+            "stateMutability": "view",
+            "type": "function"
         }
     ];
 
     let web3, account, contract;
 
+    // 初始化
     async function init() {
         if (!window.ethereum) {
-            showError('请安装 MetaMask 或其他 Web3 钱包');
+            updateStatus('请安装 MetaMask', 'error');
             return;
         }
         web3 = new Web3(window.ethereum);
         contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
-        document.getElementById('connectBtn').onclick = connectWallet;
-        await ensureNetwork();
+        document.getElementById('connectWalletButton').onclick = connectWallet;
     }
 
-    async function ensureNetwork() {
+    // 连接钱包（与原页面逻辑一致）
+    async function connectWallet() {
+        try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            account = (await web3.eth.getAccounts())[0];
+            document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
+            updateStatus('连接成功，正在查询...', 'success');
+            await switchNetwork();
+            await loadUserInfo();
+            setInterval(loadUserInfo, 10000); // 每10秒刷新
+        } catch (err) {
+            updateStatus('连接失败', 'error');
+        }
+    }
+
+    // 切换网络（与原页面完全一致）
+    async function switchNetwork() {
         try {
             await window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
                 params: [{ chainId: TARGET_CHAIN_ID }]
             });
+            updateStatus('已切换到 Gate Layer');
         } catch (switchError) {
             if (switchError.code === 4902) {
                 try {
@@ -153,29 +170,19 @@
                             blockExplorerUrls: ['https://www.gatescan.org/gatelayer/']
                         }]
                     });
+                    updateStatus('已添加并切换到 Gate Layer');
                 } catch (addError) {
-                    showError('无法添加 GateLayer 网络');
+                    updateStatus('网络添加失败', 'error');
                 }
+            } else {
+                updateStatus('网络切换失败', 'error');
             }
         }
     }
 
-    async function connectWallet() {
-        try {
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-            account = accounts[0];
-            document.getElementById('connectBtn').innerText = `${account.slice(0,6)}...${account.slice(-4)}`;
-            document.getElementById('status').innerText = '读取中...';
-            hideError();
-            await refreshInfo();
-            setInterval(refreshInfo, 8000);
-        } catch (err) {
-            showError('连接失败：' + (err.message || '用户拒绝'));
-        }
-    }
-
-    async function refreshInfo() {
-        if (!account) return;
+    // 查询用户信息
+    async function loadUserInfo() {
+        if (!account || !contract) return;
         try {
             const [gt, pending, total] = await contract.methods.getUserInfo(account).call();
             const enabled = await contract.methods.withdrawEnabled().call();
@@ -195,23 +202,18 @@
                 statusEl.className = 'text-red-400';
             }
 
-            document.getElementById('info').classList.remove('hidden');
-            document.getElementById('status').innerText = '已连接';
-            hideError();
+            document.getElementById('userInfo').classList.remove('hidden');
+            updateStatus('数据已更新');
         } catch (err) {
-            console.error('读取失败', err);
-            showError('数据读取失败，请检查网络或刷新页面');
+            console.error(err);
+            updateStatus('查询失败，请刷新', 'error');
         }
     }
 
-    function showError(msg) {
-        const el = document.getElementById('errorMsg');
+    function updateStatus(msg, type = 'info') {
+        const el = document.getElementById('progressStatus');
         el.textContent = msg;
-        el.classList.remove('hidden');
-    }
-
-    function hideError() {
-        document.getElementById('errorMsg').classList.add('hidden');
+        el.className = type === 'error' ? 'text-red-400' : 'text-light-gray';
     }
 
     window.addEventListener('load', init);
