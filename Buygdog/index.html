@@ -107,9 +107,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
 <script>
+    // 合约地址（你提供的）
     const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
     const TARGET_CHAIN_ID = '0x2768';
 
+    // ABI（与你合约一致）
     const ABI = [
         {
             "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
@@ -141,33 +143,36 @@
 
     let web3, account, contract;
 
+    // 初始化
     async function init() {
         if (!window.ethereum) {
             updateStatus('请安装 MetaMask', 'error');
             return;
         }
-        web3 = new Web3('https://gatelayer-mainnet.gatenode.cc/');
+        web3 = new Web3(window.ethereum);
         contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
-        window.ethereum.on('accountsChanged', () => location.reload());
-        window.ethereum.on('chainChanged', () => location.reload());
         document.getElementById('connectWalletButton').onclick = connectWallet;
     }
 
+    // 连接钱包（与原页面完全一致）
     async function connectWallet() {
         try {
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
-            account = (await web3.eth.getAccounts())[0];
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            account = accounts[0];
+            if (!account) throw new Error('No account');
             document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
             updateStatus('连接成功，查询中...');
-            await ensureNetwork();
+            await switchNetwork();
             await loadUserInfo();
             setInterval(loadUserInfo, 8000);
         } catch (err) {
+            document.getElementById('connectWalletButton').innerText = 'Connect Wallet';
             updateStatus('连接失败：' + (err.message || '拒绝'), 'error');
         }
     }
 
-    async function ensureNetwork() {
+    // 切换网络（与原页面完全一致）
+    async function switchNetwork() {
         try {
             await window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
@@ -191,6 +196,7 @@
         }
     }
 
+    // 查询用户信息
     async function loadUserInfo() {
         if (!account) return;
         try {
@@ -228,6 +234,7 @@
         }
     }
 
+    // 领取 GDOG
     async function withdrawGDOG() {
         const btn = document.getElementById('withdrawBtn');
         btn.disabled = true;
