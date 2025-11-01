@@ -115,43 +115,27 @@
     };
 
     const PURCHASE_CONTRACT = '0x9815A071ca9f35837B5bA095Bedc20A5D230DD38';
-
-    const ABI = [
-        {
-            "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
-            "name": "getUserInfo",
-            "outputs": [
-                {"internalType": "uint256", "name": "gtSpent", "type": "uint256"},
-                {"internalType": "uint256", "name": "gdogPending", "type": "uint256"},
-                {"internalType": "uint256", "name": "totalGdogBalance", "type": "uint256"},
-                {"internalType": "uint256", "name": "purchases", "type": "uint256"}
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "withdrawEnabled",
-            "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "withdrawGDOG",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        }
+    const RPC_LIST = [
+        'https://gatelayer-mainnet.gatenode.cc',
+        'https://rpc.gatelayer.io'
     ];
 
-    let web3, account, contract;
+    const ABI = [ /* 你的 ABI */ ];
 
-    // 关键：switchNetwork 后必须重建 contract
-    async function createContract() {
-        if (!web3 || !account) return;
-        contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
-        await loadUserInfo();
+    let web3, account, rpcWeb3, rpcIndex = 0;
+
+    // 初始化 RPC Web3（用于查询）
+    async function initRpcWeb3() {
+        const rpc = RPC_LIST[rpcIndex];
+        rpcWeb3 = new Web3(rpc);
+        try {
+            await rpcWeb3.eth.getBlockNumber();
+            return true;
+        } catch {
+            rpcIndex = (rpcIndex + 1) % RPC_LIST.length;
+            if (rpcIndex === 0) return false;
+            return initRpcWeb3();
+        }
     }
 
     async function initializeWeb3() {
@@ -160,7 +144,7 @@
             return;
         }
 
-        web3 = new Web3(window.ethereum); // 必须用 MetaMask
+        web3 = new Web3(window.ethereum);
 
         try {
             await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -170,16 +154,23 @@
             document.getElementById('connectWalletButton').innerText = `Connected: ${account.slice(0,6)}...${account.slice(-4)}`;
             await switchNetwork('GateLayer');
 
-            // 监听链变化，自动刷新
-            window.ethereum.on('chainChanged', () => location.reload());
+            // 初始化 RPC 查询
+            if (!await initRpcWeb3()) {
+                updateStatus('网络错误，请刷新', 'error');
+                return;
+            }
+
+            const contract = new rpcWeb3.eth.Contract(ABI, PURCHASE_CONTRACT);
+            await loadUserInfo(contract);
+            setInterval(() => loadUserInfo(contract), 10000);
+
+            // 监听账号变化
             window.ethereum.on('accountsChanged', (accounts) => {
                 if (accounts.length === 0) location.reload();
                 account = accounts[0];
-                createContract();
+                loadUserInfo(contract);
             });
 
-            await createContract(); // 关键：重建 contract
-            setInterval(loadUserInfo, 10000);
         } catch (error) {
             document.getElementById('connectWalletButton').innerText = 'Connect Wallet';
             updateStatus('连接失败：' + (error.message || '拒绝'), 'error');
@@ -209,20 +200,19 @@
         }
     }
 
-    async function loadUserInfo() {
-        if (!account || !contract) return;
+    async function loadUserInfo(contract) {
+        if (!account) return;
         try {
             const [gt, pending, total, purchases] = await contract.methods.getUserInfo(account).call();
             const enabled = await contract.methods.withdrawEnabled().call();
 
-            const fmt = n => Number(web3.utils.fromWei(n, 'ether')).toFixed(18).replace(/\.?0+$/, '');
-
-            document.getElementById('gtSpent').innerText = fmt(gt);
-            document.getElementById('gdogPending').innerText = fmt(pending);
-            document.getElementById('totalGdog').innerText = fmt(total);
+            // 显示原始值（与 GateScan 一致）
+            document.getElementById('gtSpent').innerText = gt;
+            document.getElementById('gdogPending').innerText = pending;
+            document.getElementById('totalGdog').innerText = total;
             document.getElementById('purchases').innerText = purchases;
 
-            const canWithdraw = enabled && Number(pending) > 0;
+            const canWithdraw = enabled && BigInt(pending) > 0n;
             const statusEl = document.getElementById('withdrawText');
             const btn = document.getElementById('withdrawBtn');
 
@@ -230,7 +220,7 @@
                 statusEl.textContent = '可领取';
                 statusEl.className = 'text-green-400';
                 btn.classList.remove('hidden');
-                btn.onclick = withdrawGDOG;
+                btn.onclick = () => withdrawGDOG(web3, account);
             } else {
                 statusEl.textContent = enabled ? '无可领 GDOG' : '未开放领取';
                 statusEl.className = 'text-red-400';
@@ -242,18 +232,19 @@
         } catch (err) {
             console.error('查询失败', err);
             updateStatus('查询失败，3秒后重试...', 'error');
-            setTimeout(loadUserInfo, 3000);
+            setTimeout(() => loadUserInfo(contract), 3000);
         }
     }
 
-    async function withdrawGDOG() {
+    async function withdrawGDOG(web3, account) {
         const btn = document.getElementById('withdrawBtn');
         btn.disabled = true;
         btn.innerHTML = '领取中... <i class="fa fa-spinner fa-spin ml-2"></i>';
         try {
+            const contract = new web3.eth.Contract(ABI, PURCHASE_CONTRACT);
             const tx = await contract.methods.withdrawGDOG().send({ from: account });
             updateStatus(`领取成功！Tx: ${tx.transactionHash.slice(0,10)}...`);
-            await loadUserInfo();
+            setTimeout(() => location.reload(), 2000);
         } catch (err) {
             updateStatus('领取失败：' + (err.message || '拒绝'), 'error');
         } finally {
